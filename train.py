@@ -18,7 +18,7 @@ from dataset.coco import DataLoader
 flags.DEFINE_string('config_file', '', 'Model config file')
 flags.DEFINE_string('data_dir', 'data', 'Data directory')
 flags.DEFINE_integer('batch_size', 8, 'Batch size')
-flags.DEFINE_integer('epochs', 100, 'Number of epochs')
+flags.DEFINE_integer('max_iter', 120000, 'Maximum number of iterations')
 flags.DEFINE_float('lr', 1e-3, 'Learning rate')
 flags.DEFINE_integer('num_classes', 81, 'Number of classes')
 flags.DEFINE_integer('neg_ratio', 3, 'Negative ratio')
@@ -144,62 +144,60 @@ def main(_argv):
 
     val_log_dir = 'logs/val'
     val_writer = tf.summary.create_file_writer(val_log_dir)
-    steps_per_epoch = num_train // FLAGS.batch_size
-    for epoch in range(FLAGS.epochs):
-        start = time.time()
-        for batch, (images, gt_confs, gt_locs) in enumerate(train_data):
-            loss, conf_loss, loc_loss, l2_loss = train_step(
-                images, gt_confs, gt_locs, model, loss_obj, optimizer)
+    # steps_per_epoch = num_train // FLAGS.batch_size
+        # start = time.time()
+    for batch, (images, gt_confs, gt_locs) in enumerate(train_data):
+        loss, conf_loss, loc_loss, l2_loss = train_step(
+            images, gt_confs, gt_locs, model, loss_obj, optimizer)
 
-            ckpt.step.assign_add(1)
-            if int(ckpt.step) % 500 == 0:
-                save_path = manager.save()
-                logging.info('Saved checkpoint for step {}: {}'.format(
-                    int(ckpt.step), save_path))
+        ckpt.step.assign_add(1)
+        step = int(ckpt.step)
+        if step % 500 == 0:
+            save_path = manager.save()
+            logging.info('Saved checkpoint for step {}: {}'.format(
+                int(ckpt.step), save_path))
 
-            if (batch + 1) % 10 == 0:
-                logging.info('Epoch {:03d} iter {:06d}/{:06d} | '
-                             'total_loss: {:.2f} conf_loss: {:.2f} '
-                             'loc_loss: {:.2f}'.format(
-                                 epoch + 1, int(ckpt.step),
-                                 steps_per_epoch, loss.numpy(),
-                                 conf_loss.numpy(), loc_loss.numpy()))
+        if step % 10 == 0:
+            logging.info('iter {:06d}/{:06d} | '
+                         'total_loss: {:.2f} conf_loss: {:.2f} '
+                         'loc_loss: {:.2f}'.format(
+                             step, FLAGS.max_iter, loss.numpy(),
+                             conf_loss.numpy(), loc_loss.numpy()))
 
-            train_loss.update_state(loss)
-            train_conf_loss.update_state(conf_loss)
-            train_loc_loss.update_state(loc_loss)
+        train_loss.update_state(loss)
+        train_conf_loss.update_state(conf_loss)
+        train_loc_loss.update_state(loc_loss)
 
-        with train_writer.as_default():
-            tf.summary.scalar('loss', train_loss.result(), step=epoch+1)
-            tf.summary.scalar('conf_loss', train_conf_loss.result(), step=epoch+1)
-            tf.summary.scalar('loc_loss', train_loc_loss.result(), step=epoch+1)
+        if step % 100 == 0:
+            with train_writer.as_default():
+                tf.summary.scalar('loss', train_loss.result(), step=step)
+                tf.summary.scalar('conf_loss', train_conf_loss.result(), step=step)
+                tf.summary.scalar('loc_loss', train_loc_loss.result(), step=step)
 
-        for batch, (images, gt_confs, gt_locs) in enumerate(val_data):
-            loss, conf_loss, loc_loss, l2_loss = test_step(
-                images, gt_confs, gt_locs, model, loss_obj
-            )
-            val_loss.update_state(loss)
-            val_conf_loss.update_state(conf_loss)
-            val_loc_loss.update_state(loc_loss)
-        logging.info('Evaluation | Epoch {:03d} | total_loss: {:.2f} '
-                     'conf_loss: {:.2f} loc_loss: {:.2f}'.format(
-                         epoch + 1, val_loss.result(), val_conf_loss.result(),
-                         val_loc_loss.result()))
+            for batch, (images, gt_confs, gt_locs) in enumerate(val_data):
+                loss, conf_loss, loc_loss, l2_loss = test_step(
+                    images, gt_confs, gt_locs, model, loss_obj
+                )
+                val_loss.update_state(loss)
+                val_conf_loss.update_state(conf_loss)
+                val_loc_loss.update_state(loc_loss)
+            logging.info('Evaluation | total_loss: {:.2f} '
+                         'conf_loss: {:.2f} loc_loss: {:.2f}'.format(
+                             val_loss.result(), val_conf_loss.result(),
+                             val_loc_loss.result()))
 
-        with val_writer.as_default():
-            tf.summary.scalar('loss', val_loss.result(), step=epoch+1)
-            tf.summary.scalar('conf_loss', val_conf_loss.result(), step=epoch+1)
-            tf.summary.scalar('loc_loss', val_loc_loss.result(), step=epoch+1)
+            with val_writer.as_default():
+                tf.summary.scalar('loss', val_loss.result(), step=step)
+                tf.summary.scalar('conf_loss', val_conf_loss.result(), step=step)
+                tf.summary.scalar('loc_loss', val_loc_loss.result(), step=step)
 
-        train_loss.reset_states()
-        train_conf_loss.reset_states()
-        train_loc_loss.reset_states()
+            train_loss.reset_states()
+            train_conf_loss.reset_states()
+            train_loc_loss.reset_states()
 
-        val_loss.reset_states()
-        val_conf_loss.reset_states()
-        val_loc_loss.reset_states()
-
-        print('Epoch {} took {:.2f}'.format(epoch + 1, time.time() - start))
+            val_loss.reset_states()
+            val_conf_loss.reset_states()
+            val_loc_loss.reset_states()
 
     model.save_weights(ckpt_prefix)
 

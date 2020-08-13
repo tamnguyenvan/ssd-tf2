@@ -187,6 +187,7 @@ class DataLoader:
         dataset = tf.data.Dataset.from_tensor_slices(
             (filenames, bboxes, labels))
         if self.training:
+            dataset = dataset.repeat()
             dataset = dataset.shuffle(1000)
 
         AUTO = tf.data.experimental.AUTOTUNE
