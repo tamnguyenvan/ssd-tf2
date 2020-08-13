@@ -1,0 +1,13 @@
+MODEL:
+  NAME: 'MobileNetV2'
+  NUM_CLASSES: 81
+  PRIORS:
+    FEATURE_MAPS: [20, 10, 5, 3, 2, 1]
+    STEPS: [16, 32, 64, 107, 160, 320]
+    MIN_SIZES: [60, 105, 150, 195, 240, 285]
+    MAX_SIZES: [105, 150, 195, 240, 285, 330]
+    ASPECT_RATIOS: [[2, 3], [2, 3], [2, 3], [2, 3], [2, 3], [2, 3]]
+    BOXES_PER_LOCATION: [6, 6, 6, 6, 6, 6]
+    CLIP: True
+INPUT:
+  IMAGE_SIZE: 320
